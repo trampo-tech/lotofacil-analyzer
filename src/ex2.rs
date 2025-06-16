@@ -1,4 +1,6 @@
-use crate::common::{mask_para_seq, otimizar_solucao_completa, seq_para_mask, carregar_combinacoes, get_bar};
+use crate::common::{
+    carregar_combinacoes, get_bar, mask_para_seq, otimizar_solucao_completa, seq_para_mask,
+};
 use itertools::Itertools;
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
@@ -8,7 +10,7 @@ pub fn executar() {
     create_dir_all("output").expect("Não pôde criar output");
 
     println!("Carregando S14...");
-    let original_uncovered = carregar_combinacoes("output/saida_S14.csv",4_500_000);
+    let original_uncovered = carregar_combinacoes("output/saida_S14.csv", 4_500_000);
     let total_s14 = original_uncovered.len();
     println!("S14 carregado: {} combinações", total_s14);
 
@@ -33,11 +35,14 @@ pub fn executar() {
         let remaining_at_start = uncovered.len();
         let mut found_in_this_pass = 0;
         let mut covered_in_this_pass = 0u64;
-        
+
         // Update the persistent progress bar for this threshold
         barra.set_length(total_s14 as u64);
         barra.set_position(total_covered);
-        barra.set_message(format!("Threshold: {} | Restam: {}", threshold, remaining_at_start));
+        barra.set_message(format!(
+            "Threshold: {} | Restam: {}",
+            threshold, remaining_at_start
+        ));
 
         for combo in (1u8..=25).combinations(15) {
             let mask15 = seq_para_mask(&combo);
@@ -72,16 +77,14 @@ pub fn executar() {
         }
 
         barra.set_message(format!(
-            "Threshold {}: {} S15 encontrados, {} combinações cobertas", 
+            "Threshold {}: {} S15 encontrados, {} combinações cobertas",
             threshold, found_in_this_pass, covered_in_this_pass
         ));
-
 
         if uncovered.is_empty() {
             break;
         } else if threshold > 1 {
             threshold -= 1;
-            
         } else {
             barra.finish_with_message("Threshold mínimo alcançado, mas cobertura incompleta.");
             break;

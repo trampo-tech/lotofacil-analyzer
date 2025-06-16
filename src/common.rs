@@ -1,10 +1,10 @@
+use indicatif::{ProgressBar, ProgressStyle};
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
-use rayon::prelude::*;
-use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
 use itertools::Itertools;
@@ -51,34 +51,34 @@ pub fn carregar_combinacoes(path: &str, hash_set_size: usize) -> HashSet<u32> {
 pub fn get_bar(size: u64) -> ProgressBar {
     let barra = ProgressBar::new(size);
     let style = ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] {pos}/{len}")
-            .expect("Template inválido");
-        barra.set_style(style);
-        barra
+        .template("[{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] {pos}/{len}")
+        .expect("Template inválido");
+    barra.set_style(style);
+    barra
 }
 
 /// Remove combinações S15 redundantes da solução
 ///
 /// Esta função identifica e remove combinações S15 que são completamente
-/// cobertas por outras combinações já presentes na solução. 
+/// cobertas por outras combinações já presentes na solução.
 ///
 /// # Argumentos
 ///  `solution` - Vetor mutável contendo as máscaras S15 da solução
 ///  `original_uncovered` - Conjunto original de combinações S14 não cobertas
 pub fn remover_redundantes(solution: &mut Vec<u32>, original_uncovered: &HashSet<u32>) {
     let tamanho_inicial = solution.len();
-    
+
     // Create spinner for redundant removal
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_strings(&["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"])
             .template("{spinner:.blue} {msg} [{elapsed_precise}]")
-            .unwrap()
+            .unwrap(),
     );
     spinner.set_message("Removendo combinações redundantes...");
     spinner.enable_steady_tick(Duration::from_millis(100));
-    
+
     let mut i = 0;
 
     while i < solution.len() {
@@ -117,15 +117,24 @@ pub fn remover_redundantes(solution: &mut Vec<u32>, original_uncovered: &HashSet
         // If all combinations covered by current are also covered by others, remove
         if current_coverage.is_subset(&covered_by_others) {
             let current_combo = mask_para_seq(current_mask);
-            spinner.set_message(format!("Removendo S15 redundante: {:?} ({}/{})", current_combo, i + 1, solution.len()));
+            spinner.set_message(format!(
+                "Removendo S15 redundante: {:?} ({}/{})",
+                current_combo,
+                i + 1,
+                solution.len()
+            ));
             solution.remove(i);
         } else {
             i += 1;
         }
-        
+
         // Update progress occasionally
         if i % 1000 == 0 {
-            spinner.set_message(format!("Verificando redundantes... {}/{}", i, solution.len()));
+            spinner.set_message(format!(
+                "Verificando redundantes... {}/{}",
+                i,
+                solution.len()
+            ));
         }
     }
 
@@ -145,14 +154,14 @@ pub fn remover_redundantes(solution: &mut Vec<u32>, original_uncovered: &HashSet
 ///
 pub fn otimizar_por_substituicao(solution: &mut Vec<u32>, original_uncovered: &HashSet<u32>) {
     let mut melhorias = 0;
-    
+
     // Create spinner for substitution optimization
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_strings(&["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"])
             .template("{spinner:.green} {msg} [{elapsed_precise}]")
-            .unwrap()
+            .unwrap(),
     );
     spinner.set_message("Preparando otimização por substituição...");
     spinner.enable_steady_tick(Duration::from_millis(100));
@@ -160,11 +169,11 @@ pub fn otimizar_por_substituicao(solution: &mut Vec<u32>, original_uncovered: &H
     // Generate all possible S15 combinations once
     spinner.set_message("Gerando todas as combinações S15 possíveis...");
     let all_s15_combos: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
-    
+
     for i in 0..solution.len() {
         let current_mask = solution[i];
         let current_combo = mask_para_seq(current_mask);
-        
+
         // Update spinner message with progress
         spinner.set_message(format!(
             "Otimizando S15 {}/{} - {:?} (melhorias: {})",
@@ -188,7 +197,7 @@ pub fn otimizar_por_substituicao(solution: &mut Vec<u32>, original_uncovered: &H
         }
 
         let current_coverage = uncovered_without_current.len();
-        
+
         // Parallel search for best replacement
         let best_replacement = all_s15_combos
             .par_iter()
@@ -199,12 +208,12 @@ pub fn otimizar_por_substituicao(solution: &mut Vec<u32>, original_uncovered: &H
             .map(|combo| {
                 let mask15 = seq_para_mask(combo);
                 let mut test_uncovered = uncovered_without_current.clone();
-                
+
                 for &n in combo {
                     let sub = mask15 & !(1 << (n - 1));
                     test_uncovered.remove(&sub);
                 }
-                
+
                 (test_uncovered.len(), mask15, combo.clone())
             })
             .min_by_key(|(coverage, _, _)| *coverage);
@@ -252,18 +261,18 @@ pub fn otimizar_local_search(solution: &mut Vec<u32>, original_uncovered: &HashS
     let mut melhorias = 0;
     let mut restart = true;
     let mut iteration = 0;
-    
+
     // Create spinner for local search optimization
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_strings(&["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"])
             .template("{spinner:.yellow} {msg} [{elapsed_precise}]")
-            .unwrap()
+            .unwrap(),
     );
     spinner.set_message("Iniciando busca local (2->1)...");
     spinner.enable_steady_tick(Duration::from_millis(100));
-    
+
     // Pre-generate combinations for parallel processing
     spinner.set_message("Gerando combinações para busca local...");
     let all_s15_combos: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
@@ -271,7 +280,12 @@ pub fn otimizar_local_search(solution: &mut Vec<u32>, original_uncovered: &HashS
     while restart {
         restart = false;
         iteration += 1;
-        spinner.set_message(format!("Busca local - Iteração {} ({} S15s, {} melhorias)", iteration, solution.len(), melhorias));
+        spinner.set_message(format!(
+            "Busca local - Iteração {} ({} S15s, {} melhorias)",
+            iteration,
+            solution.len(),
+            melhorias
+        ));
 
         'outer: for i in 0..solution.len() {
             for j in (i + 1)..solution.len() {
@@ -305,12 +319,12 @@ pub fn otimizar_local_search(solution: &mut Vec<u32>, original_uncovered: &HashS
                     .find_any(|combo| {
                         let mask15 = seq_para_mask(combo);
                         let mut test_uncovered = uncovered_without_pair.clone();
-                        
+
                         for &n in *combo {
                             let sub = mask15 & !(1 << (n - 1));
                             test_uncovered.remove(&sub);
                         }
-                        
+
                         test_uncovered.len() <= pair_coverage
                     });
 
@@ -321,7 +335,7 @@ pub fn otimizar_local_search(solution: &mut Vec<u32>, original_uncovered: &HashS
                         let sub = mask15 & !(1 << (n - 1));
                         test_uncovered.remove(&sub);
                     }
-                    
+
                     spinner.set_message(format!(
                         "✓ Substituindo par S15 #{},{}: {:?},{:?} -> {:?} (melhoria: {})",
                         i + 1,
@@ -341,7 +355,10 @@ pub fn otimizar_local_search(solution: &mut Vec<u32>, original_uncovered: &HashS
         }
     }
 
-    spinner.finish_with_message(format!("✓ Busca local concluída. {} melhorias realizadas.", melhorias));
+    spinner.finish_with_message(format!(
+        "✓ Busca local concluída. {} melhorias realizadas.",
+        melhorias
+    ));
 }
 
 /// Executa todas as otimizações disponíveis na solução S15

@@ -1,88 +1,82 @@
+use crate::common::{
+    carregar_combinacoes, get_bar, mask_para_seq, otimizar_solucao_completa, seq_para_mask,
+};
 use itertools::Itertools;
-use std::collections::HashSet;
 use std::fs::{File, create_dir_all};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::time::Instant;
 
-#[inline]
-fn seq_para_mask(seq: &[u8]) -> u32 {
-    let mut m = 0;
-    for &n in seq {
-        m |= 1 << (n - 1);
-    }
-    m
-}
-#[inline]
-fn mask_para_seq(mask: u32) -> Vec<u8> {
-    (0..25)
-        .filter_map(|i| {
-            if mask & (1 << i) != 0 {
-                Some((i + 1) as u8)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-fn carregar_s12(path: &str) -> HashSet<u32> {
-    let f = File::open(path).unwrap();
-    let mut s = HashSet::with_capacity(5_200_300);
-    for l in BufReader::new(f).lines() {
-        let row = l.unwrap();
-        let nums = row
-            .split(',')
-            .map(|s| s.parse().unwrap())
-            .collect::<Vec<u8>>();
-        s.insert(seq_para_mask(&nums));
-    }
-    s
-}
 
 pub fn executar() {
-    create_dir_all("output").ok();
+    create_dir_all("output").expect("Não pôde criar diretório output");
     println!("Carregando S12...");
-    let mut uncovered = carregar_s12("output/saida_S12.csv");
-    let total = uncovered.len();
-    println!("S12: {} combos a cobrir", total);
-    let mut solution = Vec::with_capacity(total / 455 + 1);
+    let mut uncovered = carregar_combinacoes("output/saida_S12.csv", 5_200_300);
+    let total_s12 = uncovered.len();
+    println!("S12 carregado: {} combinações a cobrir", total_s12);
+
+    let mut solution = Vec::with_capacity(total_s12 / 455 + 1); // C(15,3) = 455
     let start = Instant::now();
-    let remove3 = (0..15).combinations(3).collect::<Vec<_>>();
-    for combo in (1u8..=25).combinations(15) {
-        let m15 = seq_para_mask(&combo);
-        let mut covered = false;
-        for rem in &remove3 {
-            let mut sub = m15;
-            for &i in rem {
-                sub &= !(1 << (combo[i] - 1));
+
+    let barra = get_bar(total_s12 as u64);
+    barra.set_message(format!("S12: {} restantes", uncovered.len()));
+
+    let remove3_indices = (0..15).combinations(3).collect::<Vec<_>>();
+
+    for combo15_seq in (1u8..=25).combinations(15) {
+        let m15 = seq_para_mask(&combo15_seq);
+        let mut newly_covered_this_pass = 0;
+
+        for rem_indices in &remove3_indices {
+            let mut sub_mask = m15;
+            for &idx_in_combo15 in rem_indices {
+                sub_mask &= !(1 << (combo15_seq[idx_in_combo15] - 1));
             }
-            if uncovered.remove(&sub) {
-                covered = true;
+            if uncovered.remove(&sub_mask) {
+                newly_covered_this_pass += 1;
             }
         }
-        if covered {
+
+        if newly_covered_this_pass > 0 {
             solution.push(m15);
+            barra.inc(newly_covered_this_pass as u64);
+            barra.set_message(format!("S12: {} restantes", uncovered.len()));
             if uncovered.is_empty() {
+                barra.finish_with_message("Cobertura completa de S12 alcançada!");
                 break;
             }
         }
     }
-    println!(
-        "Cobriu S12 com {} S15 em {:?}",
-        solution.len(),
-        start.elapsed()
-    );
-    let mut w = BufWriter::new(File::create("output/SB15_12.csv").unwrap());
-    for &m in &solution {
-        let seq = mask_para_seq(m);
-        writeln!(
-            w,
-            "{}",
-            seq.iter()
-                .map(|n| n.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        )
-        .unwrap();
+    
+    if !uncovered.is_empty() {
+        barra.finish_with_message(format!(
+            "Processamento de S12 concluído. {} S12 restantes.",
+            uncovered.len()
+        ));
+    } else if solution.is_empty() && total_s12 > 0 {
+        barra.finish_with_message("Nenhuma combinação S15 necessária ou encontrada para S12.");
+    } else if total_s12 == 0 {
+        barra.finish_with_message("Nenhuma combinação S12 para cobrir.");
     }
-    println!("SB15_12 salvo");
+
+
+    let elapsed = start.elapsed();
+    println!(
+        "Cobertura de S12 concluída com {} S15 em {:.2?}",
+        solution.len(),
+        elapsed
+    );
+
+    let out_path = "output/SB15_12.csv";
+    let out_file = File::create(out_path).expect("Falha ao criar SB15_12.csv");
+    let mut writer = BufWriter::new(out_file);
+    for &mask in &solution {
+        let seq = mask_para_seq(mask);
+        let line = seq
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        writeln!(writer, "{}", line).expect("Erro escrevendo solução para SB15_12.csv");
+    }
+    println!("SB15_12 salvo em '{}'", out_path);
 }
