@@ -22,12 +22,7 @@ pub fn executar() -> io::Result<()> {
     for &(nome, path) in &jogos {
         let n = contar_linhas(path)?;
         let custo = (n as f64) * custo_unitario;
-        println!(
-            "{:<8} → {:>10} jogos → Custo: R$ {:.2}",
-            nome,
-            n,
-            custo
-        );
+        println!("{:<8} → {:>10} jogos → Custo: R$ {:.2}", nome, n, custo);
     }
 
     println!("\nCálculo concluído.");

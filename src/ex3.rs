@@ -1,28 +1,39 @@
-// ================================
-// src/exercicio3.rs
-// CENÁRIO C2: Cobrir todas S13 usando SB15_13
-// ================================
 use itertools::Itertools;
 use std::collections::HashSet;
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::time::Instant;
 
 #[inline]
 fn seq_para_mask(seq: &[u8]) -> u32 {
-    let mut m=0; for &n in seq { m |= 1 << (n-1);} m
+    let mut m = 0;
+    for &n in seq {
+        m |= 1 << (n - 1);
+    }
+    m
 }
 #[inline]
 fn mask_para_seq(mask: u32) -> Vec<u8> {
-    (0..25).filter_map(|i| if mask & (1<<i)!=0 {Some((i+1) as u8)} else {None}).collect()
+    (0..25)
+        .filter_map(|i| {
+            if mask & (1 << i) != 0 {
+                Some((i + 1) as u8)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
-fn carregar_s13(path:&str)->HashSet<u32>{
-    let f=File::open(path).expect("Abrir S13");
-    let mut set=HashSet::with_capacity(5_200_300);
-    for l in BufReader::new(f).lines(){
-        let row=l.unwrap();
-        let nums=row.split(',').map(|s|s.parse::<u8>().unwrap()).collect::<Vec<_>>();
+fn carregar_s13(path: &str) -> HashSet<u32> {
+    let f = File::open(path).expect("Abrir S13");
+    let mut set = HashSet::with_capacity(5_200_300);
+    for l in BufReader::new(f).lines() {
+        let row = l.unwrap();
+        let nums = row
+            .split(',')
+            .map(|s| s.parse::<u8>().unwrap())
+            .collect::<Vec<_>>();
         set.insert(seq_para_mask(&nums));
     }
     set
@@ -34,28 +45,44 @@ pub fn executar() {
     let mut uncovered = carregar_s13("output/saida_S13.csv");
     let total = uncovered.len();
     println!("S13: {} combos a cobrir", total);
-    let mut solution=Vec::with_capacity(total/105+1);
-    let start=Instant::now();
+    let mut solution = Vec::with_capacity(total / 105 + 1);
+    let start = Instant::now();
     let remove2 = (0..15).combinations(2).collect::<Vec<_>>();
     for combo in (1u8..=25).combinations(15) {
-        let m15=seq_para_mask(&combo);
-        let mut covered=false;
+        let m15 = seq_para_mask(&combo);
+        let mut covered = false;
         for rem in &remove2 {
-            let mut sub=m15;
-            sub &= !(1<< (combo[rem[0]]-1));
-            sub &= !(1<< (combo[rem[1]]-1));
-            if uncovered.remove(&sub) { covered=true; }
+            let mut sub = m15;
+            sub &= !(1 << (combo[rem[0]] - 1));
+            sub &= !(1 << (combo[rem[1]] - 1));
+            if uncovered.remove(&sub) {
+                covered = true;
+            }
         }
         if covered {
             solution.push(m15);
-            if uncovered.is_empty() { break; }
+            if uncovered.is_empty() {
+                break;
+            }
         }
     }
-    println!("Cobriu S13 com {} S15 em {:?}", solution.len(), start.elapsed());
-    let mut w=BufWriter::new(File::create("output/SB15_13.csv").unwrap());
+    println!(
+        "Cobriu S13 com {} S15 em {:?}",
+        solution.len(),
+        start.elapsed()
+    );
+    let mut w = BufWriter::new(File::create("output/SB15_13.csv").unwrap());
     for &m in &solution {
-        let seq=mask_para_seq(m);
-        writeln!(w, "{}", seq.iter().map(|n|n.to_string()).collect::<Vec<_>>().join(",")).unwrap();
+        let seq = mask_para_seq(m);
+        writeln!(
+            w,
+            "{}",
+            seq.iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+        .unwrap();
     }
     println!("SB15_13 salvo");
 }

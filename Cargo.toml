@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clic = "0.0.0"
+cliclack = "0.3.6"
 itertools = "0.12"
 rayon = "1.10"

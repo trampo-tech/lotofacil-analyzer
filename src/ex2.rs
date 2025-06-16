@@ -1,9 +1,9 @@
 use itertools::Itertools;
 use std::collections::HashSet;
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::time::Instant;
-
+/// Transforma uma sequencia de numero em um bitmask
 #[inline]
 fn seq_para_mask(seq: &[u8]) -> u32 {
     let mut mask = 0;
@@ -13,10 +13,17 @@ fn seq_para_mask(seq: &[u8]) -> u32 {
     mask
 }
 
-#[inline]
+/// Operação inversao, bitmask para sequencia
+#[inline] // Evita o overhead de performance ao chamar função 
 fn mask_para_seq(mask: u32) -> Vec<u8> {
     (0..25)
-        .filter_map(|i| if (mask & (1 << i)) != 0 { Some((i + 1) as u8) } else { None })
+        .filter_map(|i| {
+            if (mask & (1 << i)) != 0 {
+                Some((i + 1) as u8)
+            } else {
+                None
+            }
+        })
         .collect()
 }
 
@@ -26,7 +33,10 @@ fn carregar_s14(path: &str) -> HashSet<u32> {
     let mut set = HashSet::with_capacity(4_500_000);
     for line in reader.lines() {
         let l = line.expect("Erro lendo linha");
-        let nums = l.split(',').map(|s| s.parse::<u8>().unwrap()).collect::<Vec<_>>();
+        let nums = l
+            .split(',')
+            .map(|s| s.parse::<u8>().unwrap())
+            .collect::<Vec<_>>();
         set.insert(seq_para_mask(&nums));
     }
     set
@@ -46,13 +56,13 @@ pub fn executar() {
     for combo in (1u8..=25).combinations(15) {
         let mask15 = seq_para_mask(&combo);
         let mut covered = 0;
-        for &n in &combo {
-            let sub = mask15 & !(1 << (n - 1));
+        for &n in &combo { // Percorre os itens no grupo 15
+            let sub = mask15 & !(1 << (n - 1)); // Cria um subgrupo de 14 itens com base nos 15 removendo n
             if uncovered.remove(&sub) {
                 covered += 1;
             }
         }
-        if covered > 0 {
+        if covered > 0 { // Seleção gulosa
             solution.push(mask15);
             if uncovered.is_empty() {
                 break;
@@ -61,13 +71,21 @@ pub fn executar() {
     }
 
     let elapsed = start.elapsed();
-    println!("Cobertura completa com {} S15 em {:.2?}", solution.len(), elapsed);
+    println!(
+        "Cobertura completa com {} S15 em {:.2?}",
+        solution.len(),
+        elapsed
+    );
 
     let out = File::create("output/SB15_14.csv").expect("Falha ao criar SB15_14.csv");
     let mut writer = BufWriter::new(out);
     for &mask in &solution {
         let seq = mask_para_seq(mask);
-        let line = seq.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(",");
+        let line = seq
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
         writeln!(writer, "{}", line).expect("Erro escrevendo solução");
     }
 

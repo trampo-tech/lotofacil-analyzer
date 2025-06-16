@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use rayon::prelude::*;
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::time::Instant;
 
