@@ -1,6 +1,8 @@
 [package]
-name = "lotofacil"
+name = "lotofacil-analyzer"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+itertools = "0.12"
+rayon = "1.10"
