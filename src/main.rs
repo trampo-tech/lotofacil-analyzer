@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Escolha o exercício (1 a 7):");
 
     loop {
-        let exercicio = select("Escolha qual exercício exectuar:")
+        let exercicio = select("Escolha qual exercício executar:")
             .item(1, "Exercicio 1", "")
             .item(2, "Exercicio 2", "")
             .item(3, "Exercicio 3", "")
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("Saindo...");
                 break Ok(());
             }
-            _ => println!("Opção inválida.")
+            _ => println!("Opção inválida."),
         }
         return Ok(());
     }

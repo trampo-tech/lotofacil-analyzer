@@ -1,80 +1,111 @@
+use crate::common::{mask_para_seq, otimizar_solucao_completa, seq_para_mask, carregar_combinacoes, get_bar};
 use itertools::Itertools;
-use std::collections::HashSet;
 use std::fs::{File, create_dir_all};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::time::Instant;
-/// Transforma uma sequencia de numero em um bitmask
-#[inline]
-fn seq_para_mask(seq: &[u8]) -> u32 {
-    let mut mask = 0;
-    for &n in seq {
-        mask |= 1 << (n - 1);
-    }
-    mask
-}
-
-/// Operação inversao, bitmask para sequencia
-#[inline] // Evita o overhead de performance ao chamar função 
-fn mask_para_seq(mask: u32) -> Vec<u8> {
-    (0..25)
-        .filter_map(|i| {
-            if (mask & (1 << i)) != 0 {
-                Some((i + 1) as u8)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn carregar_s14(path: &str) -> HashSet<u32> {
-    let file = File::open(path).expect("Falha ao abrir S14 CSV");
-    let reader = BufReader::new(file);
-    let mut set = HashSet::with_capacity(4_500_000);
-    for line in reader.lines() {
-        let l = line.expect("Erro lendo linha");
-        let nums = l
-            .split(',')
-            .map(|s| s.parse::<u8>().unwrap())
-            .collect::<Vec<_>>();
-        set.insert(seq_para_mask(&nums));
-    }
-    set
-}
 
 pub fn executar() {
     create_dir_all("output").expect("Não pôde criar output");
 
     println!("Carregando S14...");
-    let mut uncovered = carregar_s14("output/saida_S14.csv");
-    let total_s14 = uncovered.len();
+    let original_uncovered = carregar_combinacoes("output/saida_S14.csv",4_500_000);
+    let total_s14 = original_uncovered.len();
     println!("S14 carregado: {} combinações", total_s14);
 
     let mut solution = Vec::with_capacity(total_s14 / 15 + 1);
+    let mut threshold = 15;
     let start = Instant::now();
 
-    for combo in (1u8..=25).combinations(15) {
-        let mask15 = seq_para_mask(&combo);
-        let mut covered = 0;
-        for &n in &combo { // Percorre os itens no grupo 15
-            let sub = mask15 & !(1 << (n - 1)); // Cria um subgrupo de 14 itens com base nos 15 removendo n
-            if uncovered.remove(&sub) {
-                covered += 1;
+    let mut total_covered = 0u64;
+    let barra = get_bar(total_s14 as u64);
+
+    loop {
+        let mut uncovered = original_uncovered.clone();
+        // Remove combinações já cobertas pela solução atual
+        for &mask15 in &solution {
+            let combo = mask_para_seq(mask15);
+            for &n in &combo {
+                let sub = mask15 & !(1 << (n - 1));
+                uncovered.remove(&sub);
             }
         }
-        if covered > 0 { // Seleção gulosa
-            solution.push(mask15);
-            if uncovered.is_empty() {
-                break;
+
+        let remaining_at_start = uncovered.len();
+        let mut found_in_this_pass = 0;
+        let mut covered_in_this_pass = 0u64;
+        
+        // Update the persistent progress bar for this threshold
+        barra.set_length(total_s14 as u64);
+        barra.set_position(total_covered);
+        barra.set_message(format!("Threshold: {} | Restam: {}", threshold, remaining_at_start));
+
+        for combo in (1u8..=25).combinations(15) {
+            let mask15 = seq_para_mask(&combo);
+            let mut covered = 0;
+            let mut covered_masks = Vec::new();
+
+            for &n in &combo {
+                let sub = mask15 & !(1 << (n - 1));
+                if uncovered.contains(&sub) {
+                    covered += 1;
+                    covered_masks.push(sub);
+                }
             }
+
+            if covered >= threshold {
+                // Remove as combinações cobertas
+                for mask in covered_masks {
+                    uncovered.remove(&mask);
+                }
+                barra.inc(covered as u64);
+                covered_in_this_pass += covered as u64;
+                total_covered += covered as u64;
+
+                solution.push(mask15);
+                found_in_this_pass += 1;
+
+                if uncovered.is_empty() {
+                    println!("Cobertura completa alcançada!");
+                    break;
+                }
+            }
+        }
+
+        barra.set_message(format!(
+            "Threshold {}: {} S15 encontrados, {} combinações cobertas", 
+            threshold, found_in_this_pass, covered_in_this_pass
+        ));
+
+
+        if uncovered.is_empty() {
+            break;
+        } else if threshold > 1 {
+            threshold -= 1;
+            
+        } else {
+            barra.finish_with_message("Threshold mínimo alcançado, mas cobertura incompleta.");
+            break;
         }
     }
 
+    barra.finish_with_message("Processamento inicial concluído");
+
     let elapsed = start.elapsed();
     println!(
-        "Cobertura completa com {} S15 em {:.2?}",
+        "Algoritmo inicial concluído com {} S15 em {:.2?}",
         solution.len(),
         elapsed
+    );
+
+    // FASE DE OTIMIZAÇÃO
+    let (initial_size, final_size, opt_elapsed) =
+        otimizar_solucao_completa(&mut solution, &original_uncovered);
+
+    println!(
+        "Processo completo finalizado: {} S15 (inicial: {}) em {:.2?} total",
+        final_size,
+        initial_size,
+        elapsed + opt_elapsed
     );
 
     let out = File::create("output/SB15_14.csv").expect("Falha ao criar SB15_14.csv");
@@ -88,6 +119,5 @@ pub fn executar() {
             .join(",");
         writeln!(writer, "{}", line).expect("Erro escrevendo solução");
     }
-
     println!("SB15_14 salvo em 'output/SB15_14.csv'");
 }
