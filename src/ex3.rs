@@ -1,17 +1,39 @@
-use crate::common::{
-    carregar_combinacoes, get_bar, mask_para_seq, otimizar_solucao_completa, seq_para_mask,
-};
+use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask};
 use itertools::Itertools;
+use rand::SeedableRng;
+use rand::seq::SliceRandom;
+use std::collections::HashSet;
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::time::Instant;
 
-
-pub fn executar() {
+pub fn executar(seed_param: Option<u64>) {
     create_dir_all("output").expect("Não pôde criar diretório output");
 
+    let seed = seed_param.unwrap_or_else(|| {
+        std::env::var("LOTOFACIL_SEED")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or_else(|| {
+                let random_seed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos() as u64;
+                if seed_param.is_none() && std::env::var("LOTOFACIL_SEED").is_err() {
+                    println!("Seed gerada para ex3: {}", random_seed);
+                }
+                random_seed
+            })
+    });
+
+    if seed_param.is_some() {
+    } else if std::env::var("LOTOFACIL_SEED").is_ok() {
+        println!("Usando seed específica do ENV para ex3: {}", seed);
+    }
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
     println!("Carregando S13...");
-    // This set contains all S13 combinations that need to be covered.
     let original_s13_to_cover = carregar_combinacoes("output/saida_S13.csv", 5_200_300);
     let total_s13_to_cover_initially = original_s13_to_cover.len();
     println!(
@@ -21,137 +43,143 @@ pub fn executar() {
 
     if total_s13_to_cover_initially == 0 {
         println!("Nenhuma combinação S13 para cobrir. Saindo.");
-        // Optionally create an empty SB15_13.csv file
         let out_path = "output/SB15_13.csv";
         File::create(out_path).expect("Falha ao criar SB15_13.csv");
         println!("SB15_13.csv (vazio) salvo em '{}'", out_path);
+        let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
+        File::create(&out_path_seeded).expect("Falha ao criar SB15_13_seed.csv");
+        println!(
+            "SB15_13_seed_{}.csv (vazio) salvo em '{}'",
+            seed, out_path_seeded
+        );
         return;
     }
 
-    let mut solution = Vec::with_capacity(total_s13_to_cover_initially / 105 + 100); // C(15,2) = 105 S13s per S15
-    let mut threshold = 105; // Max S13s a S15 can cover C(15,2)
+    let mut solution = Vec::new();
+    let mut s13_usados = HashSet::new();
     let start_time = Instant::now();
 
-    let mut total_s13_actually_covered_count = 0u64;
+    // Uso direto da barra de progresso
     let barra = get_bar(total_s13_to_cover_initially as u64);
+    barra.set_message("Processando combinações S15 para cobrir S13s...");
 
-    // Indices to remove 2 numbers from a 15-number combination to get a 13-number combination
-    let remove2_indices = (0..15).combinations(2).collect::<Vec<_>>();
+    println!();
+    let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
+    todas_s15_seq.shuffle(&mut rng);
+    println!(
+        "Total de combinações S15: {} (ordem randomizada)",
+        todas_s15_seq.len()
+    );
 
-    'threshold_loop: loop {
-        // This set represents S13s that are not yet covered by the 'solution' found so far.
-        // It's recalculated at the start of each threshold pass.
-        let mut s13_still_needing_coverage_this_pass = original_s13_to_cover.clone();
-        for &mask15_in_solution in &solution {
-            let combo15_from_solution = mask_para_seq(mask15_in_solution);
-            for rem_idx_pair in &remove2_indices {
-                let mut s13_sub_mask = mask15_in_solution;
-                s13_sub_mask &= !(1 << (combo15_from_solution[rem_idx_pair[0]] - 1));
-                s13_sub_mask &= !(1 << (combo15_from_solution[rem_idx_pair[1]] - 1));
-                s13_still_needing_coverage_this_pass.remove(&s13_sub_mask);
+    // Auxiliar para gerar S13s de uma S15: índices para remover 2 números de uma combinação de 15 números
+    let remove2_indices: Vec<Vec<usize>> = (0..15).combinations(2).collect();
+
+    // barra.set_message é chamado acima quando a barra é criada.
+
+    for combo15_seq in todas_s15_seq {
+        let mask15 = seq_para_mask(&combo15_seq);
+
+        // Gera todas as S13s que esta S15 pode cobrir do conjunto original_s13_to_cover
+        let mut s13s_desta_s15_set = HashSet::new();
+        for rem_idx_pair in &remove2_indices {
+            let mut s13_sub_mask = mask15;
+            // combo15_seq[rem_idx_pair[0]] é o número no primeiro índice a remover
+            // combo15_seq[rem_idx_pair[1]] é o número no segundo índice a remover
+            s13_sub_mask &= !(1 << (combo15_seq[rem_idx_pair[0]] - 1));
+            s13_sub_mask &= !(1 << (combo15_seq[rem_idx_pair[1]] - 1));
+
+            if original_s13_to_cover.contains(&s13_sub_mask) {
+                s13s_desta_s15_set.insert(s13_sub_mask);
             }
         }
 
-        let remaining_s13_at_start_of_pass = s13_still_needing_coverage_this_pass.len();
-        
-        if remaining_s13_at_start_of_pass == 0 {
-             // This check ensures that if previous thresholds already covered everything, we stop.
-            println!("Cobertura completa de S13 já alcançada antes de processar threshold {}.", threshold);
-            break 'threshold_loop;
-        }
+        let novos_s13: HashSet<_> = s13s_desta_s15_set
+            .difference(&s13_usados)
+            .cloned()
+            .collect();
 
-        let mut s15_found_in_this_pass = 0;
-        let mut s13_covered_in_this_pass_count = 0u64;
+        if !novos_s13.is_empty() {
+            let similares = s13s_desta_s15_set.len() - novos_s13.len();
+            let cobertura_percentual =
+                (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0;
 
-        barra.set_length(total_s13_to_cover_initially as u64); // Total S13s to cover
-        barra.set_position(total_s13_actually_covered_count);   // S13s covered by solution so far
-        barra.set_message(format!(
-            "S13 | Threshold: {} | Restam: {} (de {})",
-            threshold, remaining_s13_at_start_of_pass, total_s13_to_cover_initially
-        ));
+            let limite_adaptativo_s13 = if cobertura_percentual < 50.0 {
+                35 // Início: muito seletivo
+            } else if cobertura_percentual < 80.0 {
+                56 // Meio: moderadamente seletivo
+            } else if cobertura_percentual < 95.0 {
+                84 // Final: menos seletivo
+            } else {
+                105 // Últimas S13: aceita qualquer contribuição
+            };
 
-        for combo15_potential_seq in (1u8..=25).combinations(15) {
-            let m15_potential = seq_para_mask(&combo15_potential_seq);
-            let mut count_s13_covered_by_this_m15 = 0;
-            let mut s13_masks_list_covered_by_this_m15 = Vec::new();
+            let contribuicao_significativa_s13 = novos_s13.len() >= 1
+                && (cobertura_percentual > 90.0 || novos_s13.len() > similares / 2);
 
-            for rem_idx_pair in &remove2_indices {
-                let mut sub_mask_s13 = m15_potential;
-                sub_mask_s13 &= !(1 << (combo15_potential_seq[rem_idx_pair[0]] - 1));
-                sub_mask_s13 &= !(1 << (combo15_potential_seq[rem_idx_pair[1]] - 1));
+            if similares < limite_adaptativo_s13 || contribuicao_significativa_s13 {
+                solution.push(mask15);
+                s13_usados.extend(novos_s13.iter());
 
-                if s13_still_needing_coverage_this_pass.contains(&sub_mask_s13) {
-                    count_s13_covered_by_this_m15 += 1;
-                    s13_masks_list_covered_by_this_m15.push(sub_mask_s13);
-                }
-            }
-
-            if count_s13_covered_by_this_m15 >= threshold {
-                solution.push(m15_potential);
-                s15_found_in_this_pass += 1;
-                
-                let mut newly_covered_s13_by_this_m15_this_pass = 0u64;
-                for s13_mask_to_remove in s13_masks_list_covered_by_this_m15 {
-                    // Remove from the pass-local set to avoid re-covering by subsequent S15s in *this same pass*
-                    if s13_still_needing_coverage_this_pass.remove(&s13_mask_to_remove) {
-                        newly_covered_s13_by_this_m15_this_pass += 1;
-                    }
-                }
-                
-                barra.inc(newly_covered_s13_by_this_m15_this_pass);
-                s13_covered_in_this_pass_count += newly_covered_s13_by_this_m15_this_pass;
-                total_s13_actually_covered_count += newly_covered_s13_by_this_m15_this_pass;
-
-                if s13_still_needing_coverage_this_pass.is_empty() {
-                    println!("Cobertura completa de S13 alcançada durante threshold {}!", threshold);
-                    // This break is for the inner C(25,15) loop
-                    break; 
-                }
+                // Uso direto da barra
+                barra.inc(novos_s13.len() as u64);
+                let current_cobertura_percentual =
+                    (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0;
+                barra.set_message(format!(
+                    "S15: {} | S13: {}/{} ({:.1}%)",
+                    solution.len(),
+                    s13_usados.len(),
+                    total_s13_to_cover_initially,
+                    current_cobertura_percentual
+                ));
             }
         }
 
-        barra.set_message(format!(
-            "S13 | Threshold {}: {} S15 adicionados, {} S13 cobertos. Total S13 cobertos: {}/{}",
-            threshold, s15_found_in_this_pass, s13_covered_in_this_pass_count, total_s13_actually_covered_count, total_s13_to_cover_initially
-        ));
-
-        if s13_still_needing_coverage_this_pass.is_empty() || total_s13_actually_covered_count >= total_s13_to_cover_initially as u64 {
-            break 'threshold_loop; // All S13s are covered
-        }
-
-        if threshold > 1 {
-            threshold -= 1;
-        } else {
+        if s13_usados.len() >= total_s13_to_cover_initially {
+            // Uso direto da barra
             barra.finish_with_message(format!(
-                "S13 | Threshold mínimo alcançado. Cobertura incompleta: {}/{} S13.",
-                 total_s13_actually_covered_count, total_s13_to_cover_initially
+                "Cobertura completa de S13 alcançada! {}/{} S13.",
+                s13_usados.len(),
+                total_s13_to_cover_initially
             ));
-            break 'threshold_loop;
+            break;
         }
     }
 
-    if total_s13_actually_covered_count >= total_s13_to_cover_initially as u64 {
-        barra.finish_with_message(format!(
-            "Cobertura completa de S13 alcançada! {}/{} S13.",
-            total_s13_actually_covered_count, total_s13_to_cover_initially
-        ));
-    } else if solution.is_empty() && total_s13_to_cover_initially > 0 {
-         barra.finish_with_message(format!("Nenhuma combinação S15 encontrada para S13. {}/{} S13 cobertos.", total_s13_actually_covered_count, total_s13_to_cover_initially));
+    // Após o loop, trata o término da barra se não foi finalizada pelo break
+    // Uso direto da barra
+    if !barra.is_finished() {
+        if s13_usados.len() < total_s13_to_cover_initially && !solution.is_empty() {
+            barra.finish_with_message(format!(
+                "Processamento de S15 concluído. Cobertura: {}/{} S13.",
+                s13_usados.len(),
+                total_s13_to_cover_initially
+            ));
+        } else if solution.is_empty() && total_s13_to_cover_initially > 0 {
+            barra.finish_with_message(format!(
+                "Nenhuma combinação S15 encontrada para S13. {}/{} S13 cobertos.",
+                s13_usados.len(),
+                total_s13_to_cover_initially
+            ));
+        }
     }
-
 
     let elapsed = start_time.elapsed();
     println!(
-        "Processo para S13 concluído com {} S15 em {:.2?}. {}/{} S13 cobertos.",
+        "Algoritmo para S13 concluído com {} S15 em {:.2?}.",
         solution.len(),
-        elapsed,
-        total_s13_actually_covered_count,
-        total_s13_to_cover_initially
+        elapsed
+    );
+    println!(
+        "Cobertura final: {}/{} S13 ({:.2}%)",
+        s13_usados.len(),
+        total_s13_to_cover_initially,
+        (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0
     );
 
-    let out_path = "output/SB15_13.csv";
-    let out_file = File::create(out_path).expect("Falha ao criar SB15_13.csv");
-    let mut writer = BufWriter::new(out_file);
+    let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
+    let out_file_seeded =
+        File::create(&out_path_seeded).expect("Falha ao criar arquivo SB15_13 com seed");
+    let mut writer_seeded = BufWriter::new(out_file_seeded);
     for &mask in &solution {
         let seq = mask_para_seq(mask);
         let line = seq
@@ -159,7 +187,21 @@ pub fn executar() {
             .map(|n| n.to_string())
             .collect::<Vec<_>>()
             .join(",");
-        writeln!(writer, "{}", line).expect("Erro escrevendo solução para SB15_13.csv");
+        writeln!(writer_seeded, "{}", line).expect("Erro escrevendo solução para SB15_13_seed.csv");
     }
-    println!("SB15_13 salvo em '{}'", out_path);
+    println!("SB15_13 (seed {}) salvo em '{}'", seed, out_path_seeded);
+
+    let main_out_path = "output/SB15_13.csv";
+    let main_out_file = File::create(main_out_path).expect("Falha ao criar SB15_13.csv");
+    let mut main_writer = BufWriter::new(main_out_file);
+    for &mask in &solution {
+        let seq = mask_para_seq(mask);
+        let line = seq
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        writeln!(main_writer, "{}", line).expect("Erro escrevendo solução para SB15_13.csv");
+    }
+    println!("Cópia também salva em '{}'", main_out_path);
 }

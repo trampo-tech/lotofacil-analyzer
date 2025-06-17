@@ -1,4 +1,4 @@
-use cliclack::{outro, select};
+use cliclack::{input, outro, select};
 
 mod common;
 mod ex1;
@@ -8,13 +8,13 @@ mod ex4;
 mod ex5;
 mod ex6;
 mod ex7;
+mod show_results; // Adiciona o novo módulo
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("Escolha o exercício (1 a 7):");
-
+    cliclack::intro("Lotofácil Analyzer")?;
     loop {
-        let exercicio = select("Escolha qual exercício executar:")
+        let exercicio: u32 = select("Escolha qual exercício executar:")
             .item(1, "Exercicio 1", "")
             .item(2, "Exercicio 2", "")
             .item(3, "Exercicio 3", "")
@@ -22,28 +22,76 @@ fn main() -> Result<(), Box<dyn Error>> {
             .item(5, "Exercicio 5", "")
             .item(6, "Exercicio 6", "")
             .item(7, "Exercicio 7", "")
+            .item(8, "Mostrar Resultados", "Exibe o número de combinações S15 para os exercícios 2-5") // Nova opção
             .item(99, "Limpar", "")
             .item(0, "Sair", "")
             .interact()?;
-        outro("")?;
         match exercicio {
             1 => ex1::executar(),
-            2 => ex2::executar(),
-            3 => ex3::executar(),
-            4 => ex4::executar(),
-            5 => ex5::executar(),
+            2 => {
+                let seed_str: String = input("Forneça uma seed (opcional):")
+                    .placeholder("Pressione Enter para gerar uma seed aleatória")
+                    .required(false)
+                    .interact()?;
+                let seed_input: Option<u64> = if seed_str.is_empty() {
+                    None
+                } else {
+                    seed_str.parse::<u64>().ok()
+                };
+                outro("")?;
+                ex2::executar(seed_input);
+            }
+            3 => {
+                let seed_str: String = input("Forneça uma seed para ex3 (opcional):")
+                    .placeholder("Pressione Enter para gerar uma seed aleatória")
+                    .required(false)
+                    .interact()?;
+                let seed_input: Option<u64> = if seed_str.is_empty() {
+                    None
+                } else {
+                    seed_str.parse::<u64>().ok()
+                };
+                outro("")?;
+                ex3::executar(seed_input);
+            }
+            4 => {
+                let seed_str: String = input("Forneça uma seed para ex4 (opcional):")
+                    .placeholder("Pressione Enter para gerar uma seed aleatória")
+                    .required(false)
+                    .interact()?;
+                let seed_input: Option<u64> = if seed_str.is_empty() {
+                    None
+                } else {
+                    seed_str.parse::<u64>().ok()
+                };
+                outro("")?;
+                ex4::executar(seed_input);
+            }
+            5 => {
+                let seed_str: String = input("Forneça uma seed para ex5 (opcional):")
+                    .placeholder("Pressione Enter para gerar uma seed aleatória")
+                    .required(false)
+                    .interact()?;
+                let seed_input: Option<u64> = if seed_str.is_empty() {
+                    None
+                } else {
+                    seed_str.parse::<u64>().ok()
+                };
+                outro("")?;
+                ex5::executar(seed_input);
+            }
             6 => ex6::executar(),
             7 => ex7::executar().expect("Falha ao calcular custo financeiro"),
+            8 => show_results::executar(), 
             99 => {
                 common::limpar_output().expect("Falha ao limpar pasta 'output'");
                 println!("Pasta 'output' limpa!");
             }
             0 => {
-                println!("Saindo...");
+                outro("👋 Saindo...")?;
                 break Ok(());
             }
-            _ => println!("Opção inválida."),
+            _ => outro("Opção inválida. Tente novamente.")?,
         }
-        return Ok(());
     }
 }
