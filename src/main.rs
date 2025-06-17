@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("Pasta 'output' limpa!");
             }
             0 => {
-                outro("👋 Saindo...")?;
+                outro("Saindo...")?;
                 break Ok(());
             }
             _ => outro("Opção inválida. Tente novamente.")?,
