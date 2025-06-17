@@ -74,3 +74,22 @@ pub fn limpar_output() -> io::Result<()> {
     }
     Ok(())
 }
+
+/// Salva uma lista de máscaras (u32) como linhas CSV de sequências no arquivo especificado.
+pub fn salvar_solucao_csv<P: AsRef<Path>>(path: P, solution: &[u32]) -> io::Result<()> {
+    use std::fs::File;
+    use std::io::BufWriter;
+    use std::io::Write;
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+    for &mask in solution {
+        let seq = mask_para_seq(mask);
+        let line = seq
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        writeln!(writer, "{}", line)?;
+    }
+    Ok(())
+}

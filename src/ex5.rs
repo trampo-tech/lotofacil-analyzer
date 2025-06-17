@@ -145,20 +145,17 @@ pub fn executar(seed_param: Option<u64>) {
             elapsed
         );
 
-        let out_path_seeded = format!("output/SB15_11_seed_{}.csv", seed);
-        let out_file_seeded =
-            File::create(&out_path_seeded).expect(&format!("Falha ao criar arquivo output/SB15_11_seed_{}.csv", seed));
-        let mut writer_seeded = BufWriter::new(out_file_seeded);
-        for &mask in &solution {
-            let seq = mask_para_seq(mask);
-            let line = seq
-                .iter()
-                .map(|n| n.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-            writeln!(writer_seeded, "{}", line).expect(&format!("Erro escrevendo solução para output/SB15_11_seed_{}.csv", seed));
+        let out_path_seeded = format!("output/combinacoes/SB15_11_seed_{}.csv", seed);
+        if let Err(e) = crate::common::salvar_solucao_csv(&out_path_seeded, &solution) {
+            eprintln!(
+                "Erro escrevendo solução para output/combinacoes/SB15_11_seed_{}.csv: {}",
+                seed, e
+            );
         }
-        println!("Solução SB15_11 (seed {}) com 100% cobertura salva em '{}'", seed, out_path_seeded);
+        println!(
+            "Solução SB15_11 (seed {}) com 100% cobertura salva em '{}'",
+            seed, out_path_seeded
+        );
     } else {
         let cobertura_percentual_final =
             (s11_usados.len() as f64 / total_s11_to_cover_initially as f64) * 100.0;
@@ -173,6 +170,9 @@ pub fn executar(seed_param: Option<u64>) {
             cobertura_percentual_final,
             solution.len()
         );
-        println!("Nenhum arquivo de solução output/SB15_11_seed_{}.csv foi salvo pois a cobertura não foi total.", seed);
+        println!(
+            "Nenhum arquivo de solução output/SB15_11_seed_{}.csv foi salvo pois a cobertura não foi total.",
+            seed
+        );
     }
 }

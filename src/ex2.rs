@@ -1,14 +1,11 @@
-use crate::common::{
-    carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask,
-};
+use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask};
 use itertools::Itertools;
-use rand::seq::SliceRandom; // Added for shuffling
-use rand::SeedableRng; // Added for RNG
+use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use std::fs::{File, create_dir_all};
-use std::io::{BufWriter, Write};
 use std::time::Instant;
 
-pub fn executar(seed_param: Option<u64>) { // Modified signature
+pub fn executar(seed_param: Option<u64>) {
     create_dir_all("output").expect("Não pôde criar output");
 
     let seed = seed_param.unwrap_or_else(|| {
@@ -28,7 +25,6 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
     });
 
     if seed_param.is_some() {
-        // Optionally: println!("Usando seed fornecida para ex2: {}", seed);
     } else if std::env::var("LOTOFACIL_SEED").is_ok() {
         println!("Usando seed específica do ENV para ex2: {}", seed);
     }
@@ -77,15 +73,14 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
         }
 
         let remaining_s14_at_pass_start = current_uncovered_s14.len();
-        
-        let mut s15_found_in_pass = 0;
-        let mut s14_covered_in_pass = 0u64;
 
         barra.set_length(total_s14_to_cover as u64); // Ensure bar length is correct
         barra.set_position(total_s14_covered_count);
         barra.set_message(format!(
             "Threshold: {} | S14 Restantes: {} | S15 Solução: {}",
-            threshold, remaining_s14_at_pass_start, solution.len()
+            threshold,
+            remaining_s14_at_pass_start,
+            solution.len()
         ));
 
         let mut s15_candidates: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
@@ -109,38 +104,40 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
 
             if current_s15_covers_how_many_new_s14 >= threshold {
                 for s14_mask in s14_masks_covered_by_this_s15 {
-                    if current_uncovered_s14.remove(&s14_mask) {
-                    }
+                    if current_uncovered_s14.remove(&s14_mask) {}
                 }
-                // The increment to barra and counts should reflect the actual number of *newly* covered items.
+
                 barra.inc(current_s15_covers_how_many_new_s14 as u64);
-                s14_covered_in_pass += current_s15_covers_how_many_new_s14 as u64;
                 total_s14_covered_count += current_s15_covers_how_many_new_s14 as u64;
-                
+
                 solution.push(mask15_candidate);
-                s15_found_in_pass += 1;
 
                 let current_cobertura_percentual = if total_s14_to_cover > 0 {
                     (total_s14_covered_count as f64 / total_s14_to_cover as f64) * 100.0
-                } else { 0.0 };
+                } else {
+                    0.0
+                };
                 barra.set_message(format!(
                     "S15: {} | S14: {}/{} ({:.1}%) | Thr: {}",
-                    solution.len(), total_s14_covered_count, total_s14_to_cover, current_cobertura_percentual, threshold
+                    solution.len(),
+                    total_s14_covered_count,
+                    total_s14_to_cover,
+                    current_cobertura_percentual,
+                    threshold
                 ));
 
                 if current_uncovered_s14.is_empty() {
-                    break; 
+                    break;
                 }
             }
-        } 
-
+        }
 
         if current_uncovered_s14.is_empty() {
             barra.finish_with_message(format!(
                 "Cobertura completa de S14 alcançada! {}/{} S14.",
                 total_s14_covered_count, total_s14_to_cover
             ));
-            break; // Break from the main threshold loop
+            break;
         } else if threshold > 1 {
             threshold -= 1;
         } else {
@@ -148,9 +145,9 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
                 "Threshold mínimo (1) alcançado. Cobertura: {}/{} S14.",
                 total_s14_covered_count, total_s14_to_cover
             ));
-            break; // Break from the main threshold loop
+            break;
         }
-    } // End of main loop
+    }
 
     if !barra.is_finished() {
         barra.finish_with_message(format!(
@@ -158,7 +155,7 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
             total_s14_covered_count, total_s14_to_cover
         ));
     }
-    
+
     let elapsed = start_time.elapsed();
     println!(
         "Algoritmo para S14 concluído com {} S15 em {:.2?}.",
@@ -175,18 +172,9 @@ pub fn executar(seed_param: Option<u64>) { // Modified signature
         total_s14_covered_count, total_s14_to_cover, final_coverage_percentage
     );
 
-    let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
-    let out_file_seeded =
-        File::create(&out_path_seeded).expect("Falha ao criar arquivo SB15_14 com seed");
-    let mut writer_seeded = BufWriter::new(out_file_seeded);
-    for &mask in &solution {
-        let seq = mask_para_seq(mask);
-        let line = seq
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        writeln!(writer_seeded, "{}", line).expect("Erro escrevendo solução para SB15_14_seed.csv");
+    let out_path_seeded = format!("output/combinacoes/SB15_14_seed_{}.csv", seed);
+    if let Err(e) = crate::common::salvar_solucao_csv(&out_path_seeded, &solution) {
+        eprintln!("Erro escrevendo solução para SB15_14_seed.csv: {}", e);
     }
     println!("SB15_14 (seed {}) salvo em '{}'", seed, out_path_seeded);
 }

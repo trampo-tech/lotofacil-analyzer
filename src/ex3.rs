@@ -4,7 +4,6 @@ use rand::SeedableRng;
 use rand::seq::SliceRandom;
 use std::collections::HashSet;
 use std::fs::{File, create_dir_all};
-use std::io::{BufWriter, Write};
 use std::time::Instant;
 
 pub fn executar(seed_param: Option<u64>) {
@@ -68,7 +67,6 @@ pub fn executar(seed_param: Option<u64>) {
 
     let remove2_indices: Vec<Vec<usize>> = (0..15).combinations(2).collect();
 
-
     for combo15_seq in todas_s15_seq {
         let mask15 = seq_para_mask(&combo15_seq);
 
@@ -126,7 +124,6 @@ pub fn executar(seed_param: Option<u64>) {
         }
 
         if s13_usados.len() >= total_s13_to_cover_initially {
- 
             barra.finish_with_message(format!(
                 "Cobertura completa de S13 alcançada! {}/{} S13.",
                 s13_usados.len(),
@@ -134,7 +131,8 @@ pub fn executar(seed_param: Option<u64>) {
             ));
             break;
         }
-    }     let elapsed = start_time.elapsed();
+    }
+    let elapsed = start_time.elapsed();
 
     if s13_usados.len() >= total_s13_to_cover_initially {
         println!(
@@ -142,21 +140,18 @@ pub fn executar(seed_param: Option<u64>) {
             solution.len(),
             elapsed
         );
-   
-        let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
-        let out_file_seeded =
-            File::create(&out_path_seeded).expect(&format!("Falha ao criar arquivo output/SB15_13_seed_{}.csv", seed));
-        let mut writer_seeded = BufWriter::new(out_file_seeded);
-        for &mask in &solution {
-            let seq = mask_para_seq(mask);
-            let line = seq
-                .iter()
-                .map(|n| n.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-            writeln!(writer_seeded, "{}", line).expect(&format!("Erro escrevendo solução para output/SB15_13_seed_{}.csv", seed));
+
+        let out_path_seeded = format!("output/combinacoes/SB15_13_seed_{}.csv", seed);
+        if let Err(e) = crate::common::salvar_solucao_csv(&out_path_seeded, &solution) {
+            eprintln!(
+                "Erro escrevendo solução para output/SB15_13_seed_{}.csv: {}",
+                seed, e
+            );
         }
-        println!("Solução SB15_13 (seed {}) com 100% cobertura salva em '{}'", seed, out_path_seeded);
+        println!(
+            "Solução SB15_13 (seed {}) com 100% cobertura salva em '{}'",
+            seed, out_path_seeded
+        );
     } else {
         let cobertura_percentual_final =
             (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0;
@@ -171,6 +166,9 @@ pub fn executar(seed_param: Option<u64>) {
             cobertura_percentual_final,
             solution.len()
         );
-        println!("Nenhum arquivo de solução output/SB15_13_seed_{}.csv foi salvo pois a cobertura não foi total.", seed);
+        println!(
+            "Nenhum arquivo de solução output/SB15_13_seed_{}.csv foi salvo pois a cobertura não foi total.",
+            seed
+        );
     }
 }

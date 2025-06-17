@@ -22,7 +22,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             .item(5, "Exercicio 5", "")
             .item(6, "Exercicio 6", "")
             .item(7, "Exercicio 7", "")
-            .item(8, "Mostrar Resultados", "Exibe o número de combinações S15 para os exercícios 2-5") // Nova opção
+            .item(
+                8,
+                "Mostrar Resultados",
+                "Exibe o número de combinações S15 para os exercícios 2-5",
+            ) // Nova opção
             .item(99, "Limpar", "")
             .item(0, "Sair", "")
             .interact()?;
@@ -82,7 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             6 => ex6::executar(),
             7 => ex7::executar().expect("Falha ao calcular custo financeiro"),
-            8 => show_results::executar(), 
+            8 => show_results::executar(),
             99 => {
                 common::limpar_output().expect("Falha ao limpar pasta 'output'");
                 println!("Pasta 'output' limpa!");
