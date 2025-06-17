@@ -40,7 +40,6 @@ pub fn executar(seed_param: Option<u64>) {
     let start_time = Instant::now();
 
     let barra = get_bar(total_s11_to_cover_initially as u64);
-    barra.set_message("Processando combinações S15 para cobrir S11s...");
 
     println!("Gerando e embaralhando combinações S15...");
     let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();

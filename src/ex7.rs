@@ -1,6 +1,5 @@
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader};
-use std::path::Path;
 
 fn contar_linhas(path: &str) -> io::Result<usize> {
     let file = File::open(path)?;
@@ -12,7 +11,7 @@ pub fn executar() -> io::Result<()> {
     let custo_unitario = 3.0_f64;
     let combinacoes_dir = "output/combinacoes";
     println!("\x1b[2J\x1b[H"); // Limpa tela (ANSI escape)
-    println!("📊 Cálculo de Custo por Análise Lotofácil\n");
+    println!("Cálculo de Custo por Análise Lotofácil\n");
 
     let entries = match fs::read_dir(combinacoes_dir) {
         Ok(e) => e,

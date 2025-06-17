@@ -1,4 +1,4 @@
-use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask, obter_seed};
+use crate::common::{carregar_combinacoes, get_bar, seq_para_mask, obter_seed};
 use itertools::Itertools;
 use rand::SeedableRng;
 use rand::seq::SliceRandom;
@@ -39,7 +39,6 @@ pub fn executar(seed_param: Option<u64>) {
     let start_time = Instant::now();
 
     let barra = get_bar(total_s13_to_cover_initially as u64);
-    barra.set_message("Processando combinações S15 para cobrir S13s...");
 
     println!();
     let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();

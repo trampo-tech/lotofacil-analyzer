@@ -1,10 +1,9 @@
-use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, salvar_solucao_csv, seq_para_mask, obter_seed};
+use crate::common::{carregar_combinacoes, get_bar, seq_para_mask, obter_seed};
 use itertools::Itertools;
 use rand::SeedableRng;
 use rand::seq::SliceRandom;
 use std::collections::HashSet;
 use std::fs::{File, create_dir_all};
-use std::io::{BufWriter, Write};
 use std::time::Instant;
 
 pub fn executar(seed_param: Option<u64>) {
@@ -41,7 +40,6 @@ pub fn executar(seed_param: Option<u64>) {
 
     // Uso direto da barra de progresso
     let barra = get_bar(total_s12_to_cover_initially as u64);
-    barra.set_message("Processando combinações S15 para cobrir S12s...");
 
     println!("Gerando e embaralhando combinações S15...");
     let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
