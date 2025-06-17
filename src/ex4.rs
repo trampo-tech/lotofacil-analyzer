@@ -73,10 +73,10 @@ pub fn executar(seed_param: Option<u64>) {
                 (s12_usados.len() as f64 / total_s12_to_cover_initially as f64) * 100.0;
 
             let limite_adaptativo_s12 = if cobertura_percentual < 50.0 {
-                152 // Início: muito seletivo
-            } else if cobertura_percentual < 80.0 {
-                243 // Meio: moderadamente seletivo
-            } else if cobertura_percentual < 95.0 {
+                152 
+            } else if cobertura_percentual < 70.0 {
+                243 
+            } else if cobertura_percentual < 85.0 {
                 364 // Final: menos seletivo
             } else {
                 455 // Últimas S12: aceita qualquer contribuição

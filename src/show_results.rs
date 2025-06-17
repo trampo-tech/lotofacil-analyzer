@@ -14,7 +14,7 @@ fn count_lines(file_path: &str) -> Result<usize, String> {
 
 pub fn executar() {
     cliclack::clear_screen().unwrap_or_default();
-    cliclack::outro("📊 Resultados da Análise Lotofácil").unwrap_or_default();
+    cliclack::outro("Resultados da Análise Lotofácil").unwrap_or_default();
 
     let combinacoes_dir = "output/combinacoes";
     let entries = match fs::read_dir(combinacoes_dir) {
