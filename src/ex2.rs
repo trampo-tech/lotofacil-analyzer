@@ -1,13 +1,14 @@
-use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask};
+use crate::common::{
+    carregar_combinacoes, get_bar, mask_para_seq, seq_para_mask,
+};
 use itertools::Itertools;
-use rand::SeedableRng;
-use rand::seq::SliceRandom;
-use std::collections::HashSet;
+use rand::seq::SliceRandom; // Added for shuffling
+use rand::SeedableRng; // Added for RNG
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::time::Instant;
 
-pub fn executar(seed_param: Option<u64>) {
+pub fn executar(seed_param: Option<u64>) { // Modified signature
     create_dir_all("output").expect("Não pôde criar output");
 
     let seed = seed_param.unwrap_or_else(|| {
@@ -19,7 +20,6 @@ pub fn executar(seed_param: Option<u64>) {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_nanos() as u64;
-                // Não imprime a geração de seed aqui se chamado pelo otimizador (removido)
                 if seed_param.is_none() && std::env::var("LOTOFACIL_SEED").is_err() {
                     println!("Seed gerada para ex2: {}", random_seed);
                 }
@@ -28,136 +28,165 @@ pub fn executar(seed_param: Option<u64>) {
     });
 
     if seed_param.is_some() {
-        // Suprimir potencialmente se chamado pelo otimizador para reduzir o ruído (removido)
-        // println!("Usando seed fornecida para ex2: {}", seed);
+        // Optionally: println!("Usando seed fornecida para ex2: {}", seed);
     } else if std::env::var("LOTOFACIL_SEED").is_ok() {
         println!("Usando seed específica do ENV para ex2: {}", seed);
     }
 
-    println!("Carregando S14...");
-    let todas_s14 = carregar_combinacoes("output/saida_S14.csv", 4_500_000);
-    let total_s14 = todas_s14.len();
-    println!("S14 carregado: {} combinações", total_s14);
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
 
-    if total_s14 == 0 {
+    println!("Carregando S14...");
+    let original_uncovered_s14 = carregar_combinacoes("output/saida_S14.csv", 4_500_000);
+    let total_s14_to_cover = original_uncovered_s14.len();
+    println!("S14 carregado: {} combinações a cobrir", total_s14_to_cover);
+
+    if total_s14_to_cover == 0 {
         println!("Nenhuma combinação S14 para cobrir. Saindo.");
-        let out_path = "output/SB15_14.csv";
-        File::create(out_path).expect("Falha ao criar SB15_14.csv");
-        println!("SB15_14.csv (vazio) salvo em '{}'", out_path);
         let out_path_seeded = format!("output/SB15_14_seed_{}.csv", seed);
-        File::create(&out_path_seeded).expect("Falha ao criar SB15_14_seed.csv");
+        File::create(&out_path_seeded).expect("Falha ao criar SB15_14_seed.csv (vazio)");
         println!(
             "SB15_14_seed_{}.csv (vazio) salvo em '{}'",
             seed, out_path_seeded
         );
+        let main_out_path = "output/SB15_14.csv";
+        File::create(main_out_path).expect("Falha ao criar SB15_14.csv (vazio)");
+        println!("SB15_14.csv (vazio) salvo em '{}'", main_out_path);
         return;
     }
 
-    let mut sb15_14 = Vec::new();
-    let mut s14_usados = HashSet::new();
+    let mut solution = Vec::with_capacity(total_s14_to_cover / 15 + 1);
+    let mut threshold = 15;
+    let start_time = Instant::now();
 
-    let start = Instant::now();
+    let mut total_s14_covered_count = 0u64;
+    let barra = get_bar(total_s14_to_cover as u64);
+    barra.set_message("Iniciando processo de cobertura para S14...");
 
-    // Uso direto da barra de progresso
-    let barra = get_bar(total_s14 as u64);
-    barra.set_message("Gerando e embaralhando combinações S15...");
-    let mut todas_s15: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
-
-    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-    todas_s15.shuffle(&mut rng);
-    barra.set_message(format!("Total de combinações S15: {} (ordem randomizada)",todas_s15.len()));
-
-
-    for combo15 in todas_s15 {
-        let mask15 = seq_para_mask(&combo15);
-
-        let mut s14s_desta_s15 = HashSet::new();
-        for &numero in &combo15 {
-            let s14_mask = mask15 & !(1 << (numero - 1));
-            if todas_s14.contains(&s14_mask) {
-                s14s_desta_s15.insert(s14_mask);
+    loop {
+        let mut current_uncovered_s14 = original_uncovered_s14.clone();
+        // Remove combinações já cobertas pela solução atual
+        for &mask15 in &solution {
+            let combo15_seq = mask_para_seq(mask15);
+            // Cada S15 cobre 15 S14s. Iterar sobre os 15 números para formar as S14s.
+            for i in 0..combo15_seq.len() {
+                let mut s14_sub_seq = combo15_seq.clone();
+                s14_sub_seq.remove(i); // Remove um número para formar uma S14
+                let s14_sub_mask = seq_para_mask(&s14_sub_seq);
+                current_uncovered_s14.remove(&s14_sub_mask);
             }
         }
 
-        let novos_s14: HashSet<_> = s14s_desta_s15.difference(&s14_usados).cloned().collect();
+        let remaining_s14_at_pass_start = current_uncovered_s14.len();
+        
+        let mut s15_found_in_pass = 0;
+        let mut s14_covered_in_pass = 0u64;
 
-        if !novos_s14.is_empty() {
-            let similares = s14s_desta_s15.len() - novos_s14.len();
+        barra.set_length(total_s14_to_cover as u64); // Ensure bar length is correct
+        barra.set_position(total_s14_covered_count);
+        barra.set_message(format!(
+            "Threshold: {} | S14 Restantes: {} | S15 Solução: {}",
+            threshold, remaining_s14_at_pass_start, solution.len()
+        ));
 
-            let cobertura_percentual_para_heuristica =
-                (s14_usados.len() as f64 / total_s14 as f64) * 100.0;
-            let limite_adaptativo = if cobertura_percentual_para_heuristica < 50.0 {
-                5 // Início: muito seletivo
-            } else if cobertura_percentual_para_heuristica < 80.0 {
-                8 // Meio: moderadamente seletivo
-            } else if cobertura_percentual_para_heuristica < 95.0 {
-                12 // Final: menos seletivo
-            } else {
-                15 // Últimas S14: aceita qualquer contribuição
-            };
+        let mut s15_candidates: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
+        s15_candidates.shuffle(&mut rng);
 
-            // Só aceita a S15 se a similaridade for baixa OU se contribuir significativamente
-            let contribuicao_significativa = novos_s14.len() >= 1
-                && (cobertura_percentual_para_heuristica > 90.0 || novos_s14.len() > similares / 2);
+        for combo15_seq_candidate in s15_candidates {
+            let mask15_candidate = seq_para_mask(&combo15_seq_candidate);
+            let mut current_s15_covers_how_many_new_s14 = 0;
+            let mut s14_masks_covered_by_this_s15 = Vec::new();
 
-            if similares < limite_adaptativo || contribuicao_significativa {
-                sb15_14.push(mask15);
-                s14_usados.extend(novos_s14.iter());
+            for i in 0..combo15_seq_candidate.len() {
+                let mut s14_sub_seq = combo15_seq_candidate.clone();
+                s14_sub_seq.remove(i);
+                let s14_sub_mask = seq_para_mask(&s14_sub_seq);
 
-                barra.inc(novos_s14.len() as u64);
-                let current_coverage_for_msg = (s14_usados.len() as f64 / total_s14 as f64) * 100.0;
+                if current_uncovered_s14.contains(&s14_sub_mask) {
+                    current_s15_covers_how_many_new_s14 += 1;
+                    s14_masks_covered_by_this_s15.push(s14_sub_mask);
+                }
+            }
+
+            if current_s15_covers_how_many_new_s14 >= threshold {
+                for s14_mask in s14_masks_covered_by_this_s15 {
+                    if current_uncovered_s14.remove(&s14_mask) {
+                    }
+                }
+                // The increment to barra and counts should reflect the actual number of *newly* covered items.
+                barra.inc(current_s15_covers_how_many_new_s14 as u64);
+                s14_covered_in_pass += current_s15_covers_how_many_new_s14 as u64;
+                total_s14_covered_count += current_s15_covers_how_many_new_s14 as u64;
+                
+                solution.push(mask15_candidate);
+                s15_found_in_pass += 1;
+
+                let current_cobertura_percentual = if total_s14_to_cover > 0 {
+                    (total_s14_covered_count as f64 / total_s14_to_cover as f64) * 100.0
+                } else { 0.0 };
                 barra.set_message(format!(
-                    "S15: {} | S14: {}/{} ({:.1}%)",
-                    sb15_14.len(),
-                    s14_usados.len(),
-                    total_s14,
-                    current_coverage_for_msg
+                    "S15: {} | S14: {}/{} ({:.1}%) | Thr: {}",
+                    solution.len(), total_s14_covered_count, total_s14_to_cover, current_cobertura_percentual, threshold
                 ));
+
+                if current_uncovered_s14.is_empty() {
+                    break; 
+                }
             }
-        }
+        } 
 
-        if s14_usados.len() >= total_s14 {
-            barra.finish_with_message("Cobertura completa de S14 alcançada!");
-            break;
-        }
-    }
 
-    // Após o loop, trata o término da barra se não foi finalizada pelo break
+        if current_uncovered_s14.is_empty() {
+            barra.finish_with_message(format!(
+                "Cobertura completa de S14 alcançada! {}/{} S14.",
+                total_s14_covered_count, total_s14_to_cover
+            ));
+            break; // Break from the main threshold loop
+        } else if threshold > 1 {
+            threshold -= 1;
+        } else {
+            barra.finish_with_message(format!(
+                "Threshold mínimo (1) alcançado. Cobertura: {}/{} S14.",
+                total_s14_covered_count, total_s14_to_cover
+            ));
+            break; // Break from the main threshold loop
+        }
+    } // End of main loop
+
     if !barra.is_finished() {
-        let final_coverage_percent = (s14_usados.len() as f64 / total_s14 as f64) * 100.0;
         barra.finish_with_message(format!(
-            "Processamento de S15s concluído. Cobertura S14: {}/{} ({:.1}%)",
-            s14_usados.len(),
-            total_s14,
-            final_coverage_percent
+            "Processamento de S14 concluído. Cobertura final: {}/{} S14.",
+            total_s14_covered_count, total_s14_to_cover
         ));
     }
-
-    let elapsed = start.elapsed();
-    let cobertura_percentual = (s14_usados.len() as f64 / total_s14 as f64) * 100.0;
-
+    
+    let elapsed = start_time.elapsed();
     println!(
-        "Algoritmo concluído com {} S15 em {:.2?}",
-        sb15_14.len(),
+        "Algoritmo para S14 concluído com {} S15 em {:.2?}.",
+        solution.len(),
         elapsed
     );
+    let final_coverage_percentage = if total_s14_to_cover > 0 {
+        (total_s14_covered_count as f64 / total_s14_to_cover as f64) * 100.0
+    } else {
+        0.0
+    };
     println!(
-        "Cobertura: {}/{} S14 ({:.2}%)",
-        s14_usados.len(),
-        total_s14,
-        cobertura_percentual
+        "Cobertura final: {}/{} S14 ({:.2}%)",
+        total_s14_covered_count, total_s14_to_cover, final_coverage_percentage
     );
 
-    let main_out = File::create("output/SB15_14.csv").expect("Falha ao criar SB15_14.csv");
-    let mut main_writer = BufWriter::new(main_out);
-    for &mask in &sb15_14 {
+    let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
+    let out_file_seeded =
+        File::create(&out_path_seeded).expect("Falha ao criar arquivo SB15_14 com seed");
+    let mut writer_seeded = BufWriter::new(out_file_seeded);
+    for &mask in &solution {
         let seq = mask_para_seq(mask);
         let line = seq
             .iter()
             .map(|n| n.to_string())
             .collect::<Vec<_>>()
             .join(",");
-        writeln!(main_writer, "{}", line).expect("Erro escrevendo solução");
+        writeln!(writer_seeded, "{}", line).expect("Erro escrevendo solução para SB15_14_seed.csv");
     }
-    println!("Cópia também salva em 'output/SB15_14.csv'");
+    println!("SB15_14 (seed {}) salvo em '{}'", seed, out_path_seeded);
 }

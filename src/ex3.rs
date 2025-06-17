@@ -59,27 +59,19 @@ pub fn executar(seed_param: Option<u64>) {
     let mut s13_usados = HashSet::new();
     let start_time = Instant::now();
 
-    // Uso direto da barra de progresso
     let barra = get_bar(total_s13_to_cover_initially as u64);
     barra.set_message("Processando combinações S15 para cobrir S13s...");
 
     println!();
     let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
     todas_s15_seq.shuffle(&mut rng);
-    println!(
-        "Total de combinações S15: {} (ordem randomizada)",
-        todas_s15_seq.len()
-    );
 
-    // Auxiliar para gerar S13s de uma S15: índices para remover 2 números de uma combinação de 15 números
     let remove2_indices: Vec<Vec<usize>> = (0..15).combinations(2).collect();
 
-    // barra.set_message é chamado acima quando a barra é criada.
 
     for combo15_seq in todas_s15_seq {
         let mask15 = seq_para_mask(&combo15_seq);
 
-        // Gera todas as S13s que esta S15 pode cobrir do conjunto original_s13_to_cover
         let mut s13s_desta_s15_set = HashSet::new();
         for rem_idx_pair in &remove2_indices {
             let mut s13_sub_mask = mask15;
@@ -120,7 +112,6 @@ pub fn executar(seed_param: Option<u64>) {
                 solution.push(mask15);
                 s13_usados.extend(novos_s13.iter());
 
-                // Uso direto da barra
                 barra.inc(novos_s13.len() as u64);
                 let current_cobertura_percentual =
                     (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0;
@@ -135,7 +126,7 @@ pub fn executar(seed_param: Option<u64>) {
         }
 
         if s13_usados.len() >= total_s13_to_cover_initially {
-            // Uso direto da barra
+ 
             barra.finish_with_message(format!(
                 "Cobertura completa de S13 alcançada! {}/{} S13.",
                 s13_usados.len(),
@@ -143,65 +134,43 @@ pub fn executar(seed_param: Option<u64>) {
             ));
             break;
         }
-    }
+    }     let elapsed = start_time.elapsed();
 
-    // Após o loop, trata o término da barra se não foi finalizada pelo break
-    // Uso direto da barra
-    if !barra.is_finished() {
-        if s13_usados.len() < total_s13_to_cover_initially && !solution.is_empty() {
-            barra.finish_with_message(format!(
-                "Processamento de S15 concluído. Cobertura: {}/{} S13.",
-                s13_usados.len(),
-                total_s13_to_cover_initially
-            ));
-        } else if solution.is_empty() && total_s13_to_cover_initially > 0 {
-            barra.finish_with_message(format!(
-                "Nenhuma combinação S15 encontrada para S13. {}/{} S13 cobertos.",
-                s13_usados.len(),
-                total_s13_to_cover_initially
-            ));
+    if s13_usados.len() >= total_s13_to_cover_initially {
+        println!(
+            "Algoritmo para S13 concluído com 100% de cobertura, usando {} S15 em {:.2?}.",
+            solution.len(),
+            elapsed
+        );
+   
+        let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
+        let out_file_seeded =
+            File::create(&out_path_seeded).expect(&format!("Falha ao criar arquivo output/SB15_13_seed_{}.csv", seed));
+        let mut writer_seeded = BufWriter::new(out_file_seeded);
+        for &mask in &solution {
+            let seq = mask_para_seq(mask);
+            let line = seq
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            writeln!(writer_seeded, "{}", line).expect(&format!("Erro escrevendo solução para output/SB15_13_seed_{}.csv", seed));
         }
+        println!("Solução SB15_13 (seed {}) com 100% cobertura salva em '{}'", seed, out_path_seeded);
+    } else {
+        let cobertura_percentual_final =
+            (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0;
+        println!(
+            "Algoritmo para S13 NÃO atingiu 100% de cobertura após {:.2?}.",
+            elapsed
+        );
+        println!(
+            "Cobertura final: {}/{} ({:.1}%) com {} S15 selecionadas.",
+            s13_usados.len(),
+            total_s13_to_cover_initially,
+            cobertura_percentual_final,
+            solution.len()
+        );
+        println!("Nenhum arquivo de solução output/SB15_13_seed_{}.csv foi salvo pois a cobertura não foi total.", seed);
     }
-
-    let elapsed = start_time.elapsed();
-    println!(
-        "Algoritmo para S13 concluído com {} S15 em {:.2?}.",
-        solution.len(),
-        elapsed
-    );
-    println!(
-        "Cobertura final: {}/{} S13 ({:.2}%)",
-        s13_usados.len(),
-        total_s13_to_cover_initially,
-        (s13_usados.len() as f64 / total_s13_to_cover_initially as f64) * 100.0
-    );
-
-    let out_path_seeded = format!("output/SB15_13_seed_{}.csv", seed);
-    let out_file_seeded =
-        File::create(&out_path_seeded).expect("Falha ao criar arquivo SB15_13 com seed");
-    let mut writer_seeded = BufWriter::new(out_file_seeded);
-    for &mask in &solution {
-        let seq = mask_para_seq(mask);
-        let line = seq
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        writeln!(writer_seeded, "{}", line).expect("Erro escrevendo solução para SB15_13_seed.csv");
-    }
-    println!("SB15_13 (seed {}) salvo em '{}'", seed, out_path_seeded);
-
-    let main_out_path = "output/SB15_13.csv";
-    let main_out_file = File::create(main_out_path).expect("Falha ao criar SB15_13.csv");
-    let mut main_writer = BufWriter::new(main_out_file);
-    for &mask in &solution {
-        let seq = mask_para_seq(mask);
-        let line = seq
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        writeln!(main_writer, "{}", line).expect("Erro escrevendo solução para SB15_13.csv");
-    }
-    println!("Cópia também salva em '{}'", main_out_path);
 }

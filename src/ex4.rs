@@ -27,7 +27,6 @@ pub fn executar(seed_param: Option<u64>) {
     });
 
     if seed_param.is_some() {
-        // println!("Usando seed fornecida para ex4: {}", seed);
     } else if std::env::var("LOTOFACIL_SEED").is_ok() {
         println!("Usando seed específica do ENV para ex4: {}", seed);
     }
@@ -57,7 +56,7 @@ pub fn executar(seed_param: Option<u64>) {
     }
 
     let mut solution = Vec::new();
-    let mut s12_usados = HashSet::new(); // Renomeado de 'uncovered' e tipo alterado
+    let mut s12_usados = HashSet::new(); 
     let start_time = Instant::now();
 
     // Uso direto da barra de progresso
@@ -67,15 +66,9 @@ pub fn executar(seed_param: Option<u64>) {
     println!("Gerando e embaralhando combinações S15...");
     let mut todas_s15_seq: Vec<Vec<u8>> = (1u8..=25).combinations(15).collect();
     todas_s15_seq.shuffle(&mut rng);
-    println!(
-        "Total de combinações S15: {} (ordem randomizada)",
-        todas_s15_seq.len()
-    );
 
-    // Auxiliar para gerar S12s de uma S15: índices para remover 3 números
     let remove3_indices: Vec<Vec<usize>> = (0..15).combinations(3).collect();
 
-    // barra.set_message é chamado acima quando a barra é criada.
 
     for combo15_seq in todas_s15_seq {
         let mask15 = seq_para_mask(&combo15_seq);
@@ -119,7 +112,6 @@ pub fn executar(seed_param: Option<u64>) {
                 solution.push(mask15);
                 s12_usados.extend(novos_s12.iter());
 
-                // Uso direto da barra
                 barra.inc(novos_s12.len() as u64);
                 let current_cobertura_percentual =
                     (s12_usados.len() as f64 / total_s12_to_cover_initially as f64) * 100.0;
@@ -134,7 +126,6 @@ pub fn executar(seed_param: Option<u64>) {
         }
 
         if s12_usados.len() >= total_s12_to_cover_initially {
-            // Uso direto da barra
             barra.finish_with_message(format!(
                 "Cobertura completa de S12 alcançada! {}/{} S12.",
                 s12_usados.len(),
@@ -142,67 +133,45 @@ pub fn executar(seed_param: Option<u64>) {
             ));
             break;
         }
-    }
-
-    // Após o loop, trata o término da barra se não foi finalizada pelo break
-    // Uso direto da barra
-    if !barra.is_finished() {
-        if s12_usados.len() < total_s12_to_cover_initially && !solution.is_empty() {
-            barra.finish_with_message(format!(
-                "Processamento de S15 concluído. Cobertura: {}/{} S12.",
-                s12_usados.len(),
-                total_s12_to_cover_initially
-            ));
-        } else if solution.is_empty() && total_s12_to_cover_initially > 0 {
-            barra.finish_with_message(format!(
-                "Nenhuma combinação S15 encontrada para S12. {}/{} S12 cobertos.",
-                s12_usados.len(),
-                total_s12_to_cover_initially
-            ));
-        } else if total_s12_to_cover_initially == 0 {
-            barra.finish_with_message("Nenhuma combinação S12 para cobrir.");
-        }
-    }
+    } 
 
     let elapsed = start_time.elapsed();
-    println!(
-        "Algoritmo para S12 concluído com {} S15 em {:.2?}.",
-        solution.len(),
-        elapsed
-    );
-    println!(
-        "Cobertura final: {}/{} S12 ({:.2}%)",
-        s12_usados.len(),
-        total_s12_to_cover_initially,
-        (s12_usados.len() as f64 / total_s12_to_cover_initially as f64) * 100.0
-    );
 
-    let out_path_seeded = format!("output/SB15_12_seed_{}.csv", seed);
-    let out_file_seeded =
-        File::create(&out_path_seeded).expect("Falha ao criar arquivo SB15_12 com seed");
-    let mut writer_seeded = BufWriter::new(out_file_seeded);
-    for &mask in &solution {
-        let seq = mask_para_seq(mask);
-        let line = seq
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        writeln!(writer_seeded, "{}", line).expect("Erro escrevendo solução para SB15_12_seed.csv");
-    }
-    println!("SB15_12 (seed {}) salvo em '{}'", seed, out_path_seeded);
+    if s12_usados.len() >= total_s12_to_cover_initially {
+        println!(
+            "Algoritmo para S12 concluído com 100% de cobertura, usando {} S15 em {:.2?}.",
+            solution.len(),
+            elapsed
+        );
 
-    let main_out_path = "output/SB15_12.csv";
-    let main_out_file = File::create(main_out_path).expect("Falha ao criar SB15_12.csv");
-    let mut main_writer = BufWriter::new(main_out_file);
-    for &mask in &solution {
-        let seq = mask_para_seq(mask);
-        let line = seq
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        writeln!(main_writer, "{}", line).expect("Erro escrevendo solução para SB15_12.csv");
+        let out_path_seeded = format!("output/SB15_12_seed_{}.csv", seed);
+        let out_file_seeded =
+            File::create(&out_path_seeded).expect(&format!("Falha ao criar arquivo output/SB15_12_seed_{}.csv", seed));
+        let mut writer_seeded = BufWriter::new(out_file_seeded);
+        for &mask in &solution {
+            let seq = mask_para_seq(mask);
+            let line = seq
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            writeln!(writer_seeded, "{}", line).expect(&format!("Erro escrevendo solução para output/SB15_12_seed_{}.csv", seed));
+        }
+        println!("Solução SB15_12 (seed {}) com 100% cobertura salva em '{}'", seed, out_path_seeded);
+    } else {
+        let cobertura_percentual_final =
+            (s12_usados.len() as f64 / total_s12_to_cover_initially as f64) * 100.0;
+        println!(
+            "Algoritmo para S12 NÃO atingiu 100% de cobertura após {:.2?}.",
+            elapsed
+        );
+        println!(
+            "Cobertura final: {}/{} ({:.1}%) com {} S15 selecionadas.",
+            s12_usados.len(),
+            total_s12_to_cover_initially,
+            cobertura_percentual_final,
+            solution.len()
+        );
+        println!("Nenhum arquivo de solução output/SB15_12_seed_{}.csv foi salvo pois a cobertura não foi total.", seed);
     }
-    println!("Cópia também salva em '{}'", main_out_path);
 }
