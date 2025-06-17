@@ -93,3 +93,23 @@ pub fn salvar_solucao_csv<P: AsRef<Path>>(path: P, solution: &[u32]) -> io::Resu
     }
     Ok(())
 }
+
+/// Obtém uma seed a partir de um parâmetro opcional, variável de ambiente ou gera uma aleatória.
+/// Exibe mensagens apropriadas conforme a origem da seed.
+pub fn obter_seed(seed_param: Option<u64>, env_var: &str, ex_label: &str) -> u64 {
+    if let Some(seed) = seed_param {
+        return seed;
+    }
+    if let Ok(env_seed) = std::env::var(env_var) {
+        if let Ok(parsed) = env_seed.parse::<u64>() {
+            println!("Usando seed específica do ENV para {}: {}", ex_label, parsed);
+            return parsed;
+        }
+    }
+    let random_seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    println!("Seed gerada para {}: {}", ex_label, random_seed);
+    random_seed
+}

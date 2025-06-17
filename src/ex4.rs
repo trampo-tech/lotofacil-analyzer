@@ -1,6 +1,4 @@
-use crate::common::{
-    carregar_combinacoes, get_bar, mask_para_seq, salvar_solucao_csv, seq_para_mask,
-};
+use crate::common::{carregar_combinacoes, get_bar, mask_para_seq, salvar_solucao_csv, seq_para_mask, obter_seed};
 use itertools::Itertools;
 use rand::SeedableRng;
 use rand::seq::SliceRandom;
@@ -12,27 +10,7 @@ use std::time::Instant;
 pub fn executar(seed_param: Option<u64>) {
     create_dir_all("output").expect("Não pôde criar diretório output");
 
-    let seed = seed_param.unwrap_or_else(|| {
-        std::env::var("LOTOFACIL_SEED")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or_else(|| {
-                let random_seed = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos() as u64;
-                if seed_param.is_none() && std::env::var("LOTOFACIL_SEED").is_err() {
-                    println!("Seed gerada para ex4: {}", random_seed);
-                }
-                random_seed
-            })
-    });
-
-    if seed_param.is_some() {
-    } else if std::env::var("LOTOFACIL_SEED").is_ok() {
-        println!("Usando seed específica do ENV para ex4: {}", seed);
-    }
-
+    let seed = obter_seed(seed_param, "LOTOFACIL_SEED", "ex4");
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
 
     println!("Carregando S12...");
